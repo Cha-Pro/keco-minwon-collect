@@ -232,6 +232,8 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
     key = load_service_key()
+    if key:
+        key = key.strip().strip('"').strip("'").lstrip("﻿").strip()
     if not key:
         log("서비스키 없음(DATA_GO_KR_SERVICE_KEY) — 종료")
         return 2
