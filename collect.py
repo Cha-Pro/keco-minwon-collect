@@ -244,20 +244,26 @@ def main():
         return 0
     cli8 = MinwonBigdataClient(key, view="minAnalsInfoView8", timeout=60)
     cli7 = MinwonBigdataClient(key, view="minAnalsInfoView7", timeout=60)
-    ok, r = alive(cli8, budget)
+    try:
+        ok, r = alive(cli8, budget)
+        status_code, why = r.status_code, ""
+    except PortalApiError as e:
+        # 포털 자체 연결 실패(시간초과 등)도 미복구로 취급하고 다음 실행에 재시도
+        ok, r, status_code, why = False, None, 0, f"network:{str(e)[:50]}"
     status_path = os.path.join(STATE, "api_status.json")
     hist = jload(status_path, {"history": []})
     hist["history"] = (hist["history"] + [{"at": dt.datetime.now(KST).isoformat(timespec="minutes"),
-                                           "status": r.status_code, "alive": ok}])[-200:]
+                                           "status": status_code, "alive": ok}])[-200:]
     hist["last_alive_at"] = dt.datetime.now(KST).isoformat(timespec="minutes") if ok else hist.get("last_alive_at")
     jsave(status_path, hist)
     if not ok:
-        msg = ""
-        try:
-            msg = str(r.json().get("OpenAPI_ServiceResponse", {}).get("cmmMsgHeader", {}).get("errMsg", ""))[:60]
-        except ValueError:
-            msg = (r.text or "")[:60].replace(chr(10), " ")
-        log(f"API 미복구 status={r.status_code} {msg} — 다음 실행에 재시도")
+        msg = why
+        if r is not None:
+            try:
+                msg = str(r.json().get("OpenAPI_ServiceResponse", {}).get("cmmMsgHeader", {}).get("errMsg", ""))[:60]
+            except ValueError:
+                msg = (r.text or "")[:60].replace(chr(10), " ")
+        log(f"API 미복구 status={status_code} {msg} — 다음 실행에 재시도")
         return 0
     log("API 정상 — 수집 시작")
     n7, full7 = run_v7(cli7, budget)
