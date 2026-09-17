@@ -254,8 +254,7 @@ def main():
         try:
             msg = str(r.json().get("OpenAPI_ServiceResponse", {}).get("cmmMsgHeader", {}).get("errMsg", ""))[:60]
         except ValueError:
-            msg = (r.text or "")[:60].replace("
-", " ")
+            msg = (r.text or "")[:60].replace(chr(10), " ")
         log(f"API 미복구 status={r.status_code} {msg} — 다음 실행에 재시도")
         return 0
     log("API 정상 — 수집 시작")
