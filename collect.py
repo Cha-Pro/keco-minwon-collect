@@ -250,7 +250,13 @@ def main():
     hist["last_alive_at"] = dt.datetime.now(KST).isoformat(timespec="minutes") if ok else hist.get("last_alive_at")
     jsave(status_path, hist)
     if not ok:
-        log(f"API 미복구 status={r.status_code} — 다음 실행에 재시도")
+        msg = ""
+        try:
+            msg = str(r.json().get("OpenAPI_ServiceResponse", {}).get("cmmMsgHeader", {}).get("errMsg", ""))[:60]
+        except ValueError:
+            msg = (r.text or "")[:60].replace("
+", " ")
+        log(f"API 미복구 status={r.status_code} {msg} — 다음 실행에 재시도")
         return 0
     log("API 정상 — 수집 시작")
     n7, full7 = run_v7(cli7, budget)
