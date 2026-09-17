@@ -236,7 +236,7 @@ def main():
         log("서비스키 없음(DATA_GO_KR_SERVICE_KEY) — 종료")
         return 2
     budget = Budget()
-    log(f"오늘 사용 {budget.used}/{DAILY_BUDGET}")
+    log(f"오늘 사용 {budget.used}/{DAILY_BUDGET} · 키 길이 {len(key)} · %포함 {chr(37) in key}")
     if budget.left <= 0:
         log("일 한도 소진 — 종료")
         return 0
