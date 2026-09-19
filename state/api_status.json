@@ -99,6 +99,11 @@
    "at": "2026-09-20T03:02+09:00",
    "status": 0,
    "alive": false
+  },
+  {
+   "at": "2026-09-20T05:33+09:00",
+   "status": 504,
+   "alive": false
   }
  ],
  "last_alive_at": null
