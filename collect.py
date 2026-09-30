@@ -228,6 +228,27 @@ def run_v8(cli8, budget):
     return added, True
 
 
+def progress():
+    v7 = len(ckpt_load(os.path.join(STATE, "v7_체크포인트.jsonl"), lambda j: (j["kw"], j["ym"])))
+    v8 = len(ckpt_load(os.path.join(STATE, "v8_체크포인트.jsonl"), lambda j: (j["kw"], j["sido"], j["ym"])))
+    n = len(list(months()))
+    return f"View7 시군구별 {v7}/{len(V7_KEYWORDS) * n} · View8 시도별 {v8}/{len(V8_KEYWORDS) * len(SIDO) * n}"
+
+
+def write_notice(events, close=False):
+    """마일스톤을 notice.md(1행 제목, 이후 본문)로 남기면 워크플로우가 이슈로 올린다(@멘션 → 메일 알림)."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "Cha-Pro/keco-minwon-collect")
+    owner = repo.split("/")[0]
+    lines = ["권익위 민원 수집 알림",
+             f"@{owner} 권익위 민원 수집 알림 ({dt.datetime.now(KST):%Y-%m-%d %H:%M} KST)", ""]
+    lines += [f"- {e}" for e in events]
+    lines += ["", f"진행: {progress()}", f"결과 파일: https://github.com/{repo}/tree/main/결과"]
+    with open(os.path.join(BASE, "notice.md"), "w", encoding="utf-8") as f:
+        f.write(chr(10).join(lines) + chr(10))
+    if close:
+        open(os.path.join(BASE, "notice_close"), "w").close()
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
@@ -266,11 +287,40 @@ def main():
         log(f"API 미복구 status={status_code} {msg} — 다음 실행에 재시도")
         return 0
     log("API 정상 — 수집 시작")
+    ns_path = os.path.join(STATE, "notify.json")
+    ns = jload(ns_path, {})
+    now = dt.datetime.now(KST).isoformat(timespec="minutes")
+    events, close = [], False
+    if not ns.get("alive"):
+        events.append("권익위 API 재개 감지 — 수집 시작")
+        ns["alive"] = now
     n7, full7 = run_v7(cli7, budget)
     log(f"V7 +{n7}조합 ({'완료' if full7 else '예산·오류로 중단'}) · 남은 예산 {budget.left}")
-    if budget.left > 0 and self_check(cli8, budget):
-        n8, full8 = run_v8(cli8, budget)
-        log(f"V8 +{n8}조합 ({'완료' if full8 else '예산·오류로 중단'}) · 남은 예산 {budget.left}")
+    if n7 and not ns.get("v7_first"):
+        events.append(f"View7(시군구별 월 건수) 수집 시작 +{n7}조합")
+        ns["v7_first"] = now
+    if full7 and not ns.get("v7_done"):
+        events.append("View7(시군구별 월 건수) 잔여분 수집 완료")
+        ns["v7_done"] = now
+    if budget.left > 0:
+        checked_before = os.path.exists(os.path.join(STATE, "v8_실측.json"))
+        chk = self_check(cli8, budget)
+        if not checked_before and "v8_check" not in ns:
+            events.append("View8 시도별 실측 통과 — 시도별 처리기관 건수 수집 진행" if chk
+                          else "View8 시도별 실측 실패(시군구 구분 안 됨) — 시도별 수집 생략")
+            ns["v8_check"] = chk
+        if chk:
+            n8, full8 = run_v8(cli8, budget)
+            log(f"V8 +{n8}조합 ({'완료' if full8 else '예산·오류로 중단'}) · 남은 예산 {budget.left}")
+            if full8 and not ns.get("v8_done"):
+                events.append("View8 시도별 처리기관 건수 수집 완료")
+                ns["v8_done"] = now
+    if ns.get("v7_done") and (ns.get("v8_done") or ns.get("v8_check") is False) and not ns.get("closed"):
+        events.append("전체 수집 완료")
+        ns["closed"], close = now, True
+    jsave(ns_path, ns)
+    if events:
+        write_notice(events, close)
     return 0
 
 

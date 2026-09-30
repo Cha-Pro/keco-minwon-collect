@@ -4,9 +4,15 @@ on:
   schedule:
     - cron: "7 * * * *"     # 매시 07분(UTC) — KST 기준 매시 16분
   workflow_dispatch:
+    inputs:
+      notify_test:
+        description: "알림 테스트만 실행(수집 안 함)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: collect
@@ -26,10 +32,17 @@ jobs:
       - run: pip install requests
 
       - name: 수집 실행
+        if: ${{ !inputs.notify_test }}
         env:
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
           PYTHONIOENCODING: utf-8
         run: python collect.py
+
+      - name: 알림 테스트 문안
+        if: ${{ inputs.notify_test }}
+        run: |
+          printf '%s\n' "알림 테스트" "@${GITHUB_REPOSITORY_OWNER} 알림 테스트입니다. 권익위 API가 재개되어 수집이 시작되면 이 방식(이슈 + 메일)으로 알림이 갑니다." > notice.md
+          touch notice_close
 
       - name: 결과 커밋
         run: |
@@ -42,3 +55,20 @@ jobs:
             git commit -m "collect: $(date -u +'%Y-%m-%dT%H:%MZ')"
             git push
           fi
+
+      - name: 알림(이슈 + @멘션 → 메일)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f notice.md ] || { echo "알림 없음"; exit 0; }
+          title=$(head -n1 notice.md)
+          tail -n +2 notice.md > body.md
+          gh label create minwon-alert --color D93F0B --description "권익위 수집 알림" --force > /dev/null
+          num=$(gh issue list --label minwon-alert --state open --json number --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            num=$(basename "$(gh issue create --title "$title" --body-file body.md --label minwon-alert)")
+          else
+            gh issue comment "$num" --body-file body.md
+          fi
+          echo "이슈 #$num"
+          if [ -f notice_close ]; then gh issue close "$num"; fi
