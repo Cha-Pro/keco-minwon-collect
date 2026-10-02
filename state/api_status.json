@@ -279,6 +279,11 @@
    "at": "2026-10-03T03:22+09:00",
    "status": 504,
    "alive": false
+  },
+  {
+   "at": "2026-10-03T08:00+09:00",
+   "status": 0,
+   "alive": false
   }
  ],
  "last_alive_at": null
