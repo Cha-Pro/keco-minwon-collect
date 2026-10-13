@@ -499,7 +499,12 @@
    "at": "2026-10-13T11:33+09:00",
    "status": 504,
    "alive": false
+  },
+  {
+   "at": "2026-10-13T19:26+09:00",
+   "status": 200,
+   "alive": true
   }
  ],
- "last_alive_at": null
+ "last_alive_at": "2026-10-13T19:26+09:00"
 }
